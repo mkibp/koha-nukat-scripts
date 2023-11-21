@@ -100,13 +100,13 @@ function compareAuthIds(theirAuthControlIds: string[], ourAuthControlIds: string
 async function getOurSobota(): Promise<string[]> {
     //const [rows, fields] = await mysql_connection.query("SELECT CONCAT(biblioitems.lccn, ' ', DATE_FORMAT(GREATEST(biblio.timestamp, biblioitems.timestamp), '%y%m%d')) AS a FROM `biblio` LEFT JOIN `biblioitems` on `biblioitems`.`biblionumber` = `biblio`.`biblionumber` WHERE biblioitems.lccn IS NOT NULL AND biblioitems.lccn NOT LIKE '% | %' ORDER BY lccn ASC;");
     const [rows, fields] = await mysql_connection.query("SELECT CONCAT(ExtractValue(`biblio_metadata`.`metadata`, '//datafield[@tag=035]/subfield[@code=\"a\"]'), ' ', DATE_FORMAT(GREATEST(biblio.timestamp, biblioitems.timestamp, biblio_metadata.timestamp), '%y%m%d')) AS a FROM `biblio` LEFT JOIN `biblioitems` on `biblioitems`.`biblionumber` = `biblio`.`biblionumber` LEFT JOIN `biblio_metadata` on `biblio_metadata`.`biblionumber` = `biblio`.`biblionumber` WHERE ExtractValue(`biblio_metadata`.`metadata`, '//controlfield[@tag=003]') = 'NUKAT' ORDER BY lccn ASC;");
-    return (rows as any).map((r: any) => r.a as string);
+    return (rows as any[]).map((r: any) => r.a as string);
 }
 
 async function getOurBibControlIds(): Promise<string[]> {
     //const [rows, fields] = await mysql_connection.query("SELECT biblioitems.lccn AS a FROM `biblio` LEFT JOIN `biblioitems` on `biblioitems`.`biblionumber` = `biblio`.`biblionumber` WHERE biblioitems.lccn IS NOT NULL AND biblioitems.lccn NOT LIKE '% | %' ORDER BY lccn ASC;");
     const [rows, fields] = await mysql_connection.query("SELECT ExtractValue(`biblio_metadata`.`metadata`, '//datafield[@tag=035]/subfield[@code=\"a\"]') AS a FROM `biblio` LEFT JOIN `biblioitems` on `biblioitems`.`biblionumber` = `biblio`.`biblionumber` LEFT JOIN `biblio_metadata` on `biblio_metadata`.`biblionumber` = `biblio`.`biblionumber` WHERE ExtractValue(`biblio_metadata`.`metadata`, '//controlfield[@tag=003]') = 'NUKAT' ORDER BY lccn ASC;");
-    return (rows as any).map((r: any) => r.a as string);
+    return (rows as any[]).map((r: any) => r.a as string);
 }
 
 async function getBibsWith009(): Promise<string[]> {
@@ -115,22 +115,22 @@ async function getBibsWith009(): Promise<string[]> {
         + " AND `biblio_metadata`.`metadata` LIKE '%tag=\"009\"%'"
         + " AND ExtractValue(`biblio_metadata`.`metadata`, '//controlfield[@tag=009]') LIKE '%uzbazy%'"
         + " ORDER BY lccn ASC;");
-    return (rows as any).map((r: any) => r.a as string);
+    return (rows as any[]).map((r: any) => r.a as string);
 }
 
 async function getDuplicatedBibs(): Promise<string[]> {
     const [rows, fields] = await mysql_connection.query("SELECT ExtractValue(`biblio_metadata`.`metadata`, '//datafield[@tag=035]/subfield[@code=\"a\"]') AS controlid, count(*) as count FROM `biblio` LEFT JOIN `biblioitems` on `biblioitems`.`biblionumber` = `biblio`.`biblionumber` LEFT JOIN `biblio_metadata` on `biblio_metadata`.`biblionumber` = `biblio`.`biblionumber` WHERE ExtractValue(`biblio_metadata`.`metadata`, '//controlfield[@tag=003]') = 'NUKAT' GROUP BY controlid HAVING count(*) > 1 ORDER BY lccn ASC;");
-    return (rows as any).map((r: any) => r.controlid as string);
+    return (rows as any[]).map((r: any) => r.controlid as string);
 }
 
 async function getBibsWithMultipleTypes(): Promise<string[]> {
     const [rows, fields] = await mysql_connection.query("SELECT ExtractValue(`biblio_metadata`.`metadata`, '//datafield[@tag=035]/subfield[@code=\"a\"]') AS controlid FROM `biblio` LEFT JOIN `biblioitems` on `biblioitems`.`biblionumber` = `biblio`.`biblionumber` LEFT JOIN `biblio_metadata` on `biblio_metadata`.`biblionumber` = `biblio`.`biblionumber` WHERE `biblioitems`.`itemtype` LIKE '%|%' ORDER BY lccn ASC;");
-    return (rows as any).map((r: any) => r.controlid as string);
+    return (rows as any[]).map((r: any) => r.controlid as string);
 }
 
 async function getBibsWithNoType(): Promise<string[]> {
     const [rows, fields] = await mysql_connection.query("SELECT ExtractValue(`biblio_metadata`.`metadata`, '//datafield[@tag=035]/subfield[@code=\"a\"]') AS controlid FROM `biblio` LEFT JOIN `biblioitems` on `biblioitems`.`biblionumber` = `biblio`.`biblionumber` LEFT JOIN `biblio_metadata` on `biblio_metadata`.`biblionumber` = `biblio`.`biblionumber` WHERE `biblioitems`.`itemtype` IS NULL OR `biblioitems`.`itemtype` = '' ORDER BY lccn ASC;");
-    return (rows as any).map((r: any) => r.controlid as string);
+    return (rows as any[]).map((r: any) => r.controlid as string);
 }
 
 async function getOurAuthControlIds(): Promise<string[]> {
@@ -138,7 +138,7 @@ async function getOurAuthControlIds(): Promise<string[]> {
     //const [rows, fields] = await mysql_connection.query(`SELECT authid, REGEXP_REPLACE(REGEXP_SUBSTR(marcxml, '<datafield tag="010" ind1=" " ind2=" ">[ \\n]*<subfield code="a">([^<]+)<\\/subfield>[ \\n]*<\\/datafield>'), '<datafield tag="010" ind1=" " ind2=" ">[ \\n]*<subfield code="a">([^<]+)<\\/subfield>[ \\n]*<\\/datafield>', '\\\\1') AS controlid FROM auth_header;`);
     const [rows, fields] = await mysql_connection.query(`SELECT authid, ExtractValue(marcxml, '//datafield[@tag=010]/subfield[@code="a"]') AS controlid FROM auth_header;`);
     // WHERE ExtractValue(marcxml, '//controlfield[@tag=003]') = 'NUKAT' -- brak pola 003 NUKAT w rekordach...
-    const ret = (rows as any).map((r: any) => r.controlid as string).filter(onlyUnique).filter((c: string) => c);
+    const ret = (rows as any[]).map((r: any) => r.controlid as string).filter(onlyUnique).filter((c: string) => c);
     console.log(`Pobrano ${ret.length} haseł wzorcowych z naszej bazy danych`);
     return ret;
 }
@@ -298,10 +298,17 @@ async function genRaportSobota(): Promise<[string, string[], number]> {
         sumProblems += result.missingInOurs.length + result.outdatedOurs.length + result.missingInTheirs.length;
     }
 
+    return [raport, Object.keys(theirNewSobotas), sumProblems];
+}
+
+async function genRaportExtraProblems(): Promise<[string, number]> {
     const bibsWith009 = await getBibsWith009();
     const bibsDupl = await getDuplicatedBibs();
     const bibsMultiTypes = await getBibsWithMultipleTypes();
     const bibsNoType = await getBibsWithNoType();
+
+    let raport = "";
+    let sumProblems = 0;
 
     if ([bibsWith009, bibsDupl, bibsMultiTypes, bibsNoType].some(a => a.length)) {
         raport += `#################################\n`;
@@ -333,7 +340,7 @@ async function genRaportSobota(): Promise<[string, string[], number]> {
         sumProblems += bibsNoType.length;
     }
 
-    return [raport, Object.keys(theirNewSobotas), sumProblems];
+    return [raport, sumProblems];
 }
 
 async function genRaportAuth(): Promise<[string, number]> {
@@ -386,6 +393,11 @@ async function performSobotasCheck() {
     console.log(raportBib);
     raport += raportBib;
     sumProblems += sumProblemsBib;
+
+    const [raportExtra, sumProblemsExtra] = await genRaportExtraProblems();
+    console.log(raportExtra);
+    raport += raportExtra;
+    sumProblems += sumProblemsExtra;
     
     const [raportAuth, sumProblemsAuth] = await genRaportAuth();
     console.log(raportAuth);
