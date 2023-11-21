@@ -55,13 +55,22 @@ int main(int argc, char **argv)
 			snprintf(cmd, sizeof(cmd), "/usr/sbin/koha-shell biblioteka -c \"/usr/share/koha/bin/migration_tools/bulkmarcimport2.pl -file \\\"%s\\\" -framework OPRA -biblios -l /var/tmp/bulkmarcimport.log -update -match Other-control-number,035a -filter 999 -filter 952 -v 2\" | tee /var/tmp/bulkmarcimport_raw.log", path);
 			system(cmd);
 
-		} else if (strcmp(type, "auth") == 0) {
+		} else if (strcmp(type, "auth_all") == 0) {
 
 			unlink("/var/tmp/bulkmarcimport_auth.log");
 			unlink("/var/tmp/bulkmarcimport_auth_raw.log");
 
 			// LC-card-number should work but it doesn't, so we use Any
 			snprintf(cmd, sizeof(cmd), "/usr/sbin/koha-shell biblioteka -c \"/usr/share/koha/bin/migration_tools/bulkmarcimport2.pl -file \\\"%s\\\" -authorities -l /var/tmp/bulkmarcimport_auth.log -all -match Any,010a -v 2\" | tee /var/tmp/bulkmarcimport_auth_raw.log", path);
+			system(cmd);
+
+		} else if (strcmp(type, "auth_update") == 0) {
+
+			unlink("/var/tmp/bulkmarcimport_auth_update.log");
+			unlink("/var/tmp/bulkmarcimport_auth_update_raw.log");
+
+			// LC-card-number should work but it doesn't, so we use Any
+			snprintf(cmd, sizeof(cmd), "/usr/sbin/koha-shell biblioteka -c \"/usr/share/koha/bin/migration_tools/bulkmarcimport2.pl -file \\\"%s\\\" -authorities -l /var/tmp/bulkmarcimport_auth_update.log -update -match Any,010a -v 2\" | tee /var/tmp/bulkmarcimport_auth_update_raw.log", path);
 			system(cmd);
 
 		} else {

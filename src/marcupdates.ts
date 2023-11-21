@@ -7,9 +7,10 @@ import { emailTransporter, getEmailFrom, getEmailTo } from "./email";
 // bib = ftpbibuser
 // khw_mod = khasla rekordyn ("Khw dla modyfikowanych")
 // khw_kop = khasla rekordy ("Khw dla kopiowanych")
+// khw_upd = ftpuser
 
-type MARC_FILE_TYPE = "bib" | "khw_mod" | "khw_kop";
-const MARC_FILE_TYPE_ARR = ["bib", "khw_mod", "khw_kop"];
+type MARC_FILE_TYPE = "bib" | "khw_mod" | "khw_kop" | "khw_upd";
+const MARC_FILE_TYPE_ARR = ["bib", "khw_mod", "khw_kop", "khw_upd"];
 
 interface MarcUpdateFile {
     name: string;
@@ -35,6 +36,7 @@ async function getNewMarcUpdates(type: MARC_FILE_TYPE): Promise<MarcUpdateFile[]
         bib: "ftpbibuser",
         khw_mod: "khasla",
         khw_kop: "khasla",
+        khw_upd: "ftpuser",
     }[type] as FTP_USER;
     await ftpConnect(ftpUserForType);
     const ftp = ftpClient[ftpUserForType];
@@ -43,15 +45,15 @@ async function getNewMarcUpdates(type: MARC_FILE_TYPE): Promise<MarcUpdateFile[]
     const nukatLibSymb = await getNukatLibrarySymbol();
     if (type === "khw_mod") dir = `rekordyn/${nukatLibSymb}/`;
     if (type === "khw_kop") dir = `rekordy/${nukatLibSymb}/`;
-    //if (type.startsWith("khw_")) dir += "ARCHIWUM/10/"; // temp
+    //if (type === "khw_mod" || type === "khw_kop") dir += "ARCHIWUM/10/"; // temp
 
     const files = await ftp.list(dir);
     const bibFiles = files.filter(f => {
         if (!f.isFile || !f.size)
             return false;
         let day = parseInt(f.name);
-        if (type === "bib") {
-            const r = /^ubf([0-9]{6})$/.exec(f.name);
+        if (type === "bib" || type === "khw_upd") {
+            const r = (type === "bib" ? /^ubf([0-9]{6})$/ : /^uf([0-9]{6})$/).exec(f.name);
             if (r && r[1])
                 day = +r[1];
             else
@@ -59,7 +61,7 @@ async function getNewMarcUpdates(type: MARC_FILE_TYPE): Promise<MarcUpdateFile[]
         }
         if (day === 0)
             return false;
-        return day >= 230000;
+        return day >= 231000;
     }).map(f => f.name).sort();
     //console.log({ bibFiles });
     
@@ -128,7 +130,7 @@ async function importMarcUpdatesToKoha(updates: MarcUpdateFile[]) {
         //script = import.meta.dir + "/../" + script;
         const helper_cmd = import.meta.dir + "/../import_helper";
         const dateBefore = +new Date();
-        const cmdParams = [helper_cmd, update.type === "bib" ? "bib" : "auth", getPathForMarcUpdateFile(update)];
+        const cmdParams = [helper_cmd, update.type === "bib" ? "bib" : (update.type === "khw_upd" ? "auth_update" : "auth_all"), getPathForMarcUpdateFile(update)];
         console.log(`Executing: ${cmdParams.join(" ")}\n`);
         const proc = Bun.spawn(cmdParams);
         const text = await new Response(proc.stdout).text();
@@ -136,7 +138,7 @@ async function importMarcUpdatesToKoha(updates: MarcUpdateFile[]) {
         //r += text;
         await proc.exited;
         
-        const file = Bun.file(update.type === "bib" ? "/var/tmp/bulkmarcimport.log" : "/var/tmp/bulkmarcimport_auth.log");
+        const file = Bun.file(update.type === "bib" ? "/var/tmp/bulkmarcimport.log" : `/var/tmp/bulkmarcimport_auth${update.type === "khw_upd" ? "_update" : ""}.log`);
         let logtext = await file.text();
         logtext = logtext.split("\n").filter(l => !l.trim().endsWith(";insert;warning : biblio not in database and option -insert not enabled, skipping...")).join("\n");
         if (file.lastModified >= dateBefore) {
@@ -194,15 +196,19 @@ async function processMarcUpdates() {
     const updatesKhwKopPromise = getNewMarcUpdates("khw_kop");
     const updatesKhwKop = await updatesKhwKopPromise;
 
+    console.log("Sprawdzanie plików khw_upd (aktualizacje khw)...");
+    const updatesKhwUpdPromise = getNewMarcUpdates("khw_upd");
+    const updatesKhwUpd = await updatesKhwUpdPromise;
+
     //console.log({ updatesBib, updatesKhwMod, updatesKhwKop });
-    const updatesCombined = [...updatesBib, ...updatesKhwMod, ...updatesKhwKop].sort((a, b) => {
+    const updatesCombined = [...updatesBib, ...updatesKhwMod, ...updatesKhwKop, ...updatesKhwUpd].sort((a, b) => {
         const date_a = parseInt(/^.*?([0-9]{6,8})$/g.exec(a.name)?.[1] || /^([0-9]{6,8}).*?$/g.exec(a.name)?.[1] || "0");
         const date_b = parseInt(/^.*?([0-9]{6,8})$/g.exec(b.name)?.[1] || /^([0-9]{6,8}).*?$/g.exec(b.name)?.[1] || "0");
         //console.log({ aname: a.name, bname: b.name, date_a, date_b });
         const comp = date_a - date_b;
         if (comp !== 0)
             return comp;
-        const order = ["khw_kop", "khw_mod", "bib"];
+        const order = ["khw_kop", "khw_mod", "khw_upd", "bib"];
         const orderSort = order.indexOf(a.type) - order.indexOf(b.type);
         if (orderSort !== 0)
             return orderSort;
