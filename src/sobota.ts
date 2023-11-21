@@ -30,6 +30,12 @@ interface AuthComparisonResults {
     missingInOurs: string[];
 }
 
+interface AuthComparisonOutdatedResult {
+    controlid: string;
+    moddate: string;
+    ourdate: string;
+}
+
 function onlyUnique(value: any, index: number, array: any[]) {
     return array.indexOf(value) === index;
 }
@@ -247,7 +253,7 @@ async function getTheirAuthControlIds(bibControlIds: string[]): Promise<string[]
     return expectedAuthIds;
 }
 
-async function getOutdatedAuthControlIds(ourControlIdsToModDate: { [controlid: string]: string }): Promise<string[]> {
+async function getOutdatedAuthControlIds(ourControlIdsToModDate: { [controlid: string]: string }): Promise<AuthComparisonOutdatedResult[]> {
     const row_regex = / ([0-9]+)    ([A-Za-z0-9 ]+)    ([0-9]{6})    ([0-9]{6})/;
 
     await ftpConnect("ftpuser");
@@ -255,7 +261,7 @@ async function getOutdatedAuthControlIds(ourControlIdsToModDate: { [controlid: s
     const files = await ftp.list();
     const controlFileName = files.filter(f => f.name.match(/^kontrolny[0-9]{6}$/) && f.isFile && f.size).map(f => f.name).sort().pop()!;
 
-    const outdated: string[] = [];
+    const outdated: AuthComparisonOutdatedResult[] = [];
 
     console.log(`Analizowanie pliku ${controlFileName}...`);
     let text = "";
@@ -277,10 +283,11 @@ async function getOutdatedAuthControlIds(ourControlIdsToModDate: { [controlid: s
                     const moddate = m[4];
                     let ourdate: string | undefined = undefined;
                     if (ourdate = ourControlIdsToModDate[controlid]) {
-                        //console.log({ controlid, moddate, ourdate });
+                        const info = { controlid, moddate, ourdate };
+                        //console.log(info);
                         matching++;
                         if (ourdate < moddate)
-                            outdated.push(controlid);
+                            outdated.push(info);
                     }
                     if ((lines % 500000) == 0)
                         console.log(`[${controlFileName}] Progress = lines:${lines} matching:${matching}`);
