@@ -143,6 +143,18 @@ async function getOurAuthControlIds(): Promise<string[]> {
     return ret;
 }
 
+async function getOurAuthControlIdsToModificationDate(): Promise<{ [controlid: string]: string }> {
+    console.log("Pobieranie naszych haseł wzorcowych (z ostatnią datą modyfikacji)...");
+    const [rows, fields] = await mysql_connection.query(`SELECT authid, ExtractValue(marcxml, '//datafield[@tag=010]/subfield[@code="a"]') AS controlid, DATE_FORMAT(modification_time, '%y%m%d') AS date FROM auth_header GROUP BY controlid;`);
+    // WHERE ExtractValue(marcxml, '//controlfield[@tag=003]') = 'NUKAT' -- brak pola 003 NUKAT w rekordach...
+    const ret = (rows as any[]).reduce((accum: any, row: { authid: string; controlid: string; date: string; }) => {
+        accum[row.controlid] = row.date;
+        return accum;
+    }, {})
+    console.log(`Pobrano ${Object.keys(ret).length} haseł wzorcowych z naszej bazy danych`);
+    return ret;
+}
+
 function ftpParseRawDate(raw: string): dayjs.Dayjs { // -.-
     // [ "Feb 02 2016", "Mar 18 2015" ]
     // [ "Oct 21 09:52", "Oct 21 09:52", "Oct 21 09:53", "Oct 21 09:53", "Oct 21 09:53", "Oct 21 09:53", "Oct 21 07:54" ]
@@ -233,6 +245,56 @@ async function getTheirAuthControlIds(bibControlIds: string[]): Promise<string[]
 
     expectedAuthIds = expectedAuthIds.filter(onlyUnique);
     return expectedAuthIds;
+}
+
+async function getOutdatedAuthControlIds(ourControlIdsToModDate: { [controlid: string]: string }): Promise<string[]> {
+    const row_regex = / ([0-9]+)    ([A-Za-z0-9 ]+)    ([0-9]{6})    ([0-9]{6})/;
+
+    await ftpConnect("ftpuser");
+    const ftp = ftpClient["ftpuser"];
+    const files = await ftp.list();
+    const controlFileName = files.filter(f => f.name.match(/^kontrolny[0-9]{6}$/) && f.isFile && f.size).map(f => f.name).sort().pop()!;
+
+    const outdated: string[] = [];
+
+    console.log(`Analizowanie pliku ${controlFileName}...`);
+    let text = "";
+    let lines = 0;
+    let matching = 0;
+    const transform = new Transform({
+        transform(chunk, encoding, callback) {
+            text += chunk.toString();
+
+            const split = text.split("\n");
+            text = split.pop() + "";
+            if (split.length) {
+                for (const line of split) {
+                    lines++;
+                    const m = row_regex.exec(line);
+                    if (!m)
+                        continue;
+                    const controlid = m[2];
+                    const moddate = m[4];
+                    let ourdate: string | undefined = undefined;
+                    if (ourdate = ourControlIdsToModDate[controlid]) {
+                        //console.log({ controlid, moddate, ourdate });
+                        matching++;
+                        if (ourdate < moddate)
+                            outdated.push(controlid);
+                    }
+                    if ((lines % 500000) == 0)
+                        console.log(`[${controlFileName}] Progress = lines:${lines} matching:${matching}`);
+                }
+            }
+
+            callback();
+        }
+    });
+    await ftp.downloadTo(transform, controlFileName);
+    console.log(`Przeanalizowano plik ${controlFileName}... (haseł wzorcowych: ${lines}, dopasowanych: ${matching}, nieaktualnych: ${outdated.length})`);
+
+    await ftpDisconnect("ftpuser");
+    return outdated;
 }
 
 async function insertFilenamesIntoSobotasDB(filenames: string[]) {
@@ -344,7 +406,7 @@ async function genRaportExtraProblems(): Promise<[string, number]> {
 }
 
 async function genRaportAuth(): Promise<[string, number]> {
-    console.log("Porównywanie haseł wzorcowych...");
+    console.log("Porównywanie obecności haseł wzorcowych...");
     const ourAuthControlIdsPromise = getOurAuthControlIds();
     const theirAuthControlIdsPromise = getTheirAuthControlIds(await getOurBibControlIds());
     const ourAuthControlIds = await ourAuthControlIdsPromise;
@@ -353,9 +415,9 @@ async function genRaportAuth(): Promise<[string, number]> {
     let raport = "";
     let sumProblems = 0;
 
-    raport += `\n#############################\n`;
-    raport += `## Raport haseł wzorcowych\n`;
-    raport += `#############################\n`;
+    raport += `\n########################################\n`;
+    raport += `## Raport zgodności haseł wzorcowych\n`;
+    raport += `########################################\n`;
     raport += `Uwaga, nieprawidłowości bibliograficzne z raportu powyżej (jeśli jakieś są) mogą wpłynąć na poprawność raportu haseł wzorcowych.\n`;
 
     raport += `\nLiczba haseł wzorcowych w Koha: ${ourAuthControlIds.length}\n`;
@@ -382,6 +444,28 @@ async function genRaportAuth(): Promise<[string, number]> {
     return [raport, sumProblems];
 }
 
+async function genRaportAuthDates(): Promise<[string, number]> {
+    console.log("Porównywanie dat modyfikacji haseł wzorcowych...");
+    const controlIdToDate = await getOurAuthControlIdsToModificationDate();
+    const outdated = await getOutdatedAuthControlIds(controlIdToDate);
+
+    let raport = "";
+    let sumProblems = 0;
+
+    raport += `\n########################################\n`;
+    raport += `## Raport aktualności haseł wzorcowych\n`;
+    raport += `########################################\n`;
+
+    raport += `\n== Hasła wzorcowe, które są nieaktualne (${outdated.length}) ==\n`;
+    if (outdated.length) {
+        raport += util.inspect(outdated, { maxArrayLength: Infinity, sorted: true }) + "\n";
+    } else {
+        raport += "brak! :)\n";
+    }
+
+    return [raport, sumProblems];
+}
+
 async function performSobotasCheck() {
     let raport = "";
     let sumProblems = 0;
@@ -403,9 +487,14 @@ async function performSobotasCheck() {
     console.log(raportAuth);
     raport += raportAuth;
     sumProblems += sumProblemsAuth;
+    
+    const [raportAuthDates, sumProblemsAuthDates] = await genRaportAuthDates();
+    console.log(raportAuthDates);
+    raport += raportAuthDates;
+    sumProblems += sumProblemsAuthDates;
 
     const endDate = dayjs();
-    raport += "Data zakończenia generowania raportu: " + dateToText(endDate) + "\n";
+    raport += "\nData zakończenia generowania raportu: " + dateToText(endDate) + "\n";
     raport += "Czas generowania raportu: " + dayjs().from(startDate, true) + "\n";
 
     console.log("Sending e-mail...");
