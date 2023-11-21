@@ -1,0 +1,19 @@
+{
+  "name": "koha-scripts",
+  "module": "index.ts",
+  "type": "module",
+  "devDependencies": {
+    "@types/nodemailer": "^6.4.13",
+    "bun-types": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "basic-ftp": "^5.0.3",
+    "dayjs": "^1.11.10",
+    "mysql2": "^3.6.2",
+    "nodemailer": "^6.9.7",
+    "xml-js": "^1.6.11"
+  }
+}
