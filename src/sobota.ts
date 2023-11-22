@@ -212,6 +212,7 @@ async function getTheirAuthControlIds(bibControlIds: string[]): Promise<string[]
     const authFiles = files.filter(f => f.name.match(/^[0-9]{8}\.bib_(?:.+)$/) && f.isFile && f.size).map(f => f.name);
     
     let expectedAuthIds: string[] = [];
+    const bibControlIdsSet: Set<string> = new Set(bibControlIds);
 
     for (const authFilename of authFiles) {
         console.log(`Analizowanie pliku ${authFilename}...`);
@@ -227,10 +228,10 @@ async function getTheirAuthControlIds(bibControlIds: string[]): Promise<string[]
                 if (split.length) {
                     for (const line of split) {
                         lines++;
-                        const linesplit = line.trim().split("#");
+                        const linesplit = line.split("#");
                         const bibId = linesplit[0];
                         const authId = linesplit[1];
-                        if (bibControlIds.includes(bibId) /*&& !expectedAuthIds.includes(authId)*/) {
+                        if (bibControlIdsSet.has(bibId) /*&& !expectedAuthIds.includes(authId)*/) {
                             //console.log({ bibId, authId });
                             matching++;
                             expectedAuthIds.push(authId);
@@ -249,8 +250,7 @@ async function getTheirAuthControlIds(bibControlIds: string[]): Promise<string[]
     
     await ftpDisconnect("nukat");
 
-    expectedAuthIds = expectedAuthIds.filter(onlyUnique);
-    return expectedAuthIds;
+    return [...new Set(expectedAuthIds)];
 }
 
 async function getOutdatedAuthControlIds(ourControlIdsToModDate: { [controlid: string]: string }): Promise<AuthComparisonOutdatedResult[]> {
