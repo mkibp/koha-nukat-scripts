@@ -11,7 +11,7 @@ async function getOurBiblios(): Promise<string[]> {
 }
 
 async function getOurAuths(): Promise<string[]> {
-    const [rows, fields] = await mysql_connection.query(`SELECT CONCAT(ExtractValue(marcxml, '//datafield[@tag=010]/subfield[@code="a"]'), '#', DATE_FORMAT(modification_time, '%y%m%d')) AS a FROM auth_header;`);
+    const [rows, fields] = await mysql_connection.query(`SELECT CONCAT(ExtractValue(marcxml, '//datafield[@tag=010]/subfield[@code="a"]'), '#', DATE_FORMAT(modification_time, '%y%m%d')) AS a FROM auth_header GROUP BY ExtractValue(marcxml, '//datafield[@tag=010]/subfield[@code="a"]')`);
     // WHERE ExtractValue(marcxml, '//controlfield[@tag=003]') = 'NUKAT' -- brak pola 003 NUKAT w rekordach...
     return (rows as any).map((r: any) => r.a as string);
 }

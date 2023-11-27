@@ -177,3 +177,5 @@ dist
 ###################
 
 /import_helper
+
+/test*

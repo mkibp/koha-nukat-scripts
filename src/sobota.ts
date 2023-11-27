@@ -124,9 +124,14 @@ async function getBibsWith009(): Promise<string[]> {
     return (rows as any[]).map((r: any) => r.a as string);
 }
 
-async function getDuplicatedBibs(): Promise<string[]> {
+async function getDuplicatedBibs(): Promise<{ controlid: string; count: string; }[]> {
     const [rows, fields] = await mysql_connection.query("SELECT ExtractValue(`biblio_metadata`.`metadata`, '//datafield[@tag=035]/subfield[@code=\"a\"]') AS controlid, count(*) as count FROM `biblio` LEFT JOIN `biblioitems` on `biblioitems`.`biblionumber` = `biblio`.`biblionumber` LEFT JOIN `biblio_metadata` on `biblio_metadata`.`biblionumber` = `biblio`.`biblionumber` WHERE ExtractValue(`biblio_metadata`.`metadata`, '//controlfield[@tag=003]') = 'NUKAT' GROUP BY controlid HAVING count(*) > 1 ORDER BY lccn ASC;");
-    return (rows as any[]).map((r: any) => r.controlid as string);
+    return rows as { controlid: string; count: string; }[];
+}
+
+async function getDuplicatedAuths(): Promise<{ controlid: string; count: string; }[]> {
+    const [rows, fields] = await mysql_connection.query("SELECT ExtractValue(marcxml, '//datafield[@tag=010]/subfield[@code=\"a\"]') AS controlid, count(*) as count FROM `auth_header` GROUP BY controlid HAVING count(*) > 1 ORDER BY count DESC");
+    return rows as { controlid: string; count: string; }[];
 }
 
 async function getBibsWithMultipleTypes(): Promise<string[]> {
@@ -228,7 +233,7 @@ async function getTheirAuthControlIds(bibControlIds: string[]): Promise<string[]
                 if (split.length) {
                     for (const line of split) {
                         lines++;
-                        const linesplit = line.split("#");
+                        const linesplit = line.trim().split("#");
                         const bibId = linesplit[0];
                         const authId = linesplit[1];
                         if (bibControlIdsSet.has(bibId) /*&& !expectedAuthIds.includes(authId)*/) {
@@ -375,11 +380,12 @@ async function genRaportExtraProblems(): Promise<[string, number]> {
     const bibsDupl = await getDuplicatedBibs();
     const bibsMultiTypes = await getBibsWithMultipleTypes();
     const bibsNoType = await getBibsWithNoType();
+    const authsDupl = await getDuplicatedAuths();
 
     let raport = "";
     let sumProblems = 0;
 
-    if ([bibsWith009, bibsDupl, bibsMultiTypes, bibsNoType].some(a => a.length)) {
+    if ([bibsWith009, bibsDupl, bibsMultiTypes, bibsNoType, authsDupl].some(a => a.length)) {
         raport += `#################################\n`;
         raport += `## Dodatkowe problemy w bazie Koha\n`;
         raport += `#################################\n`;
@@ -407,6 +413,12 @@ async function genRaportExtraProblems(): Promise<[string, number]> {
         raport += `\n== Rekordy bez żadnego typu [pole 942] (${bibsNoType.length}) ==\n`;
         raport += util.inspect(bibsNoType, { maxArrayLength: Infinity, sorted: true }) + "\n";
         sumProblems += bibsNoType.length;
+    }
+
+    if (authsDupl.length) {
+        raport += `\n== Hasła wzorcowe zduplikowane (${authsDupl.length}) ==\n`;
+        raport += util.inspect(authsDupl, { maxArrayLength: Infinity, sorted: true }) + "\n";
+        sumProblems += authsDupl.length;
     }
 
     return [raport, sumProblems];
