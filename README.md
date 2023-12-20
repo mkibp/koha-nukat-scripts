@@ -25,6 +25,7 @@ Sprawdza:
 - hasła wzorcowe, które są w Koha, a nie pasują do żadnych rekordów z Nukata
 - brakujące hasła wzorcowe w Koha
 - hasła wzorcowe, które są nieaktualne
+- rekordy bibliograficzne, które są nieaktualne
 
 Wszystkie te kontrole pomagają bibliotece w utrzymaniu na bieżąco zgodności z Nukatem i aktywne eliminowanie wszelkich powstałych nieprawidłowości.
 

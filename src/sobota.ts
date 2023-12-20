@@ -30,7 +30,7 @@ interface AuthComparisonResults {
     missingInOurs: string[];
 }
 
-interface AuthComparisonOutdatedResult {
+interface MarcComparisonOutdatedResult {
     controlid: string;
     moddate: string;
     ourdate: string;
@@ -166,6 +166,17 @@ async function getOurAuthControlIdsToModificationDate(): Promise<{ [controlid: s
     return ret;
 }
 
+async function getOurBibControlIdsToModificationDate(): Promise<{ [controlid: string]: string }> {
+    console.log("Pobieranie naszych rekordów bibliograficznych (z ostatnią datą modyfikacji)...");
+    const [rows, fields] = await mysql_connection.query("SELECT ExtractValue(`biblio_metadata`.`metadata`, '//datafield[@tag=035]/subfield[@code=\"a\"]') AS controlid, DATE_FORMAT(GREATEST(biblio.timestamp, biblioitems.timestamp, biblio_metadata.timestamp), '%y%m%d') AS date FROM `biblio` LEFT JOIN `biblioitems` on `biblioitems`.`biblionumber` = `biblio`.`biblionumber` LEFT JOIN `biblio_metadata` on `biblio_metadata`.`biblionumber` = `biblio`.`biblionumber` WHERE ExtractValue(`biblio_metadata`.`metadata`, '//controlfield[@tag=003]') = 'NUKAT'");
+    const ret = (rows as any[]).reduce((accum: any, row: { controlid: string; date: string; }) => {
+        accum[row.controlid] = row.date;
+        return accum;
+    }, {})
+    console.log(`Pobrano ${Object.keys(ret).length} haseł wzorcowych z naszej bazy danych`);
+    return ret;
+}
+
 function ftpParseRawDate(raw: string): dayjs.Dayjs { // -.-
     // [ "Feb 02 2016", "Mar 18 2015" ]
     // [ "Oct 21 09:52", "Oct 21 09:52", "Oct 21 09:53", "Oct 21 09:53", "Oct 21 09:53", "Oct 21 09:53", "Oct 21 07:54" ]
@@ -258,7 +269,7 @@ async function getTheirAuthControlIds(bibControlIds: string[]): Promise<string[]
     return [...new Set(expectedAuthIds)];
 }
 
-async function getOutdatedAuthControlIds(ourControlIdsToModDate: { [controlid: string]: string }): Promise<AuthComparisonOutdatedResult[]> {
+async function getOutdatedAuthControlIds(ourControlIdsToModDate: { [controlid: string]: string }): Promise<MarcComparisonOutdatedResult[]> {
     const row_regex = / ([0-9]+)    ([A-Za-z0-9 ]+)    ([0-9]{6})    ([0-9]{6})/;
 
     await ftpConnect("ftpuser");
@@ -266,7 +277,7 @@ async function getOutdatedAuthControlIds(ourControlIdsToModDate: { [controlid: s
     const files = await ftp.list();
     const controlFileName = files.filter(f => f.name.match(/^kontrolny[0-9]{6}$/) && f.isFile && f.size).map(f => f.name).sort().pop()!;
 
-    const outdated: AuthComparisonOutdatedResult[] = [];
+    const outdated: MarcComparisonOutdatedResult[] = [];
 
     console.log(`Analizowanie pliku ${controlFileName}...`);
     let text = "";
@@ -306,6 +317,57 @@ async function getOutdatedAuthControlIds(ourControlIdsToModDate: { [controlid: s
     console.log(`Przeanalizowano plik ${controlFileName}... (haseł wzorcowych: ${lines}, dopasowanych: ${matching}, nieaktualnych: ${outdated.length})`);
 
     await ftpDisconnect("ftpuser");
+    return outdated;
+}
+
+async function getOutdatedBibControlIds(ourControlIdsToModDate: { [controlid: string]: string }): Promise<MarcComparisonOutdatedResult[]> {
+    const row_regex = / ([0-9]+)    ([A-Za-z0-9 ]+)    ([0-9]{6})    ([0-9]{6}) */;
+
+    await ftpConnect("ftpbibuser");
+    const ftp = ftpClient["ftpbibuser"];
+    const files = await ftp.list();
+    const controlFileName = files.filter(f => f.name.match(/^kontrolnyb[0-9]{6}$/) && f.isFile && f.size).map(f => f.name).sort().pop()!;
+
+    const outdated: MarcComparisonOutdatedResult[] = [];
+
+    console.log(`Analizowanie pliku ${controlFileName}...`);
+    let text = "";
+    let lines = 0;
+    let matching = 0;
+    const transform = new Transform({
+        transform(chunk, encoding, callback) {
+            text += chunk.toString();
+
+            const split = text.split("\n");
+            text = split.pop() + "";
+            if (split.length) {
+                for (const line of split) {
+                    lines++;
+                    const m = row_regex.exec(line);
+                    if (!m)
+                        continue;
+                    const controlid = m[2];
+                    const moddate = m[4];
+                    let ourdate: string | undefined = undefined;
+                    if (ourdate = ourControlIdsToModDate[controlid]) {
+                        const info = { controlid, moddate, ourdate };
+                        //console.log(info);
+                        matching++;
+                        if (ourdate < moddate)
+                            outdated.push(info);
+                    }
+                    if ((lines % 500000) == 0)
+                        console.log(`[${controlFileName}] Progress = lines:${lines} matching:${matching}`);
+                }
+            }
+
+            callback();
+        }
+    });
+    await ftp.downloadTo(transform, controlFileName);
+    console.log(`Przeanalizowano plik ${controlFileName}... (rekordów bibliograficznych: ${lines}, dopasowanych: ${matching}, nieaktualnych: ${outdated.length})`);
+
+    await ftpDisconnect("ftpbibuser");
     return outdated;
 }
 
@@ -485,6 +547,28 @@ async function genRaportAuthDates(): Promise<[string, number]> {
     return [raport, sumProblems];
 }
 
+async function genRaportBibDates(): Promise<[string, number]> {
+    console.log("Porównywanie dat modyfikacji rekordów bibliograficznych...");
+    const controlIdToDate = await getOurBibControlIdsToModificationDate();
+    const outdated = await getOutdatedBibControlIds(controlIdToDate);
+
+    let raport = "";
+    let sumProblems = 0;
+
+    raport += `\n########################################\n`;
+    raport += `## Raport aktualności rekordów bibliograficznych\n`;
+    raport += `########################################\n`;
+
+    raport += `\n== Rekordy bibliograficzne, które są nieaktualne (${outdated.length}) ==\n`;
+    if (outdated.length) {
+        raport += util.inspect(outdated, { maxArrayLength: Infinity, sorted: true }) + "\n";
+    } else {
+        raport += "brak! :)\n";
+    }
+
+    return [raport, sumProblems];
+}
+
 async function performSobotasCheck() {
     let raport = "";
     let sumProblems = 0;
@@ -511,6 +595,11 @@ async function performSobotasCheck() {
     console.log(raportAuthDates);
     raport += raportAuthDates;
     sumProblems += sumProblemsAuthDates;
+
+    const [raportBibDates, sumProblemsBibDates] = await genRaportBibDates();
+    console.log(raportBibDates);
+    raport += raportBibDates;
+    sumProblems += sumProblemsBibDates;
 
     const endDate = dayjs();
     raport += "\nData zakończenia generowania raportu: " + dateToText(endDate) + "\n";
