@@ -4,6 +4,8 @@ Zestaw skryptów integrujących centralny katalog Nukat z systemem bibliotecznym
 
 Skrypty są ciągle rozwijane, więc w przyszłości może pojawić się więcej funkcji.
 
+Uwaga: do poprawnego działania wymagane jest użycie Elasticsearch w Koha. W przypadku Zebry nie działało poprawnie wyszukiwanie indeksu `LC-card-number` dla pola `010a` rekordów haseł wzorcowych.
+
 Funkcje:
 - sobotnia kontrola zgodności rekordów i haseł z Nukatem
 - codzienne aktualizacje rekordów bibliotecznych i haseł wzorcowych

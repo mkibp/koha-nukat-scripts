@@ -53,6 +53,7 @@ int main(int argc, char **argv)
 			unlink("/var/tmp/bulkmarcimport_raw.log");
 
 			snprintf(cmd, sizeof(cmd), "/usr/sbin/koha-shell biblioteka -c \"/usr/share/koha/bin/migration_tools/bulkmarcimport2.pl -file \\\"%s\\\" -framework OPRA -biblios -l /var/tmp/bulkmarcimport.log -update -match Other-control-number,035a -filter 999 -filter 952 -v 2\" | tee /var/tmp/bulkmarcimport_raw.log", path);
+			printf("[import_helper] Executing: %s\n", cmd);
 			system(cmd);
 
 		} else if (strcmp(type, "auth_all") == 0) {
@@ -60,8 +61,10 @@ int main(int argc, char **argv)
 			unlink("/var/tmp/bulkmarcimport_auth.log");
 			unlink("/var/tmp/bulkmarcimport_auth_raw.log");
 
-			// LC-card-number should work but it doesn't, so we use Any
-			snprintf(cmd, sizeof(cmd), "/usr/sbin/koha-shell biblioteka -c \"/usr/share/koha/bin/migration_tools/bulkmarcimport2.pl -file \\\"%s\\\" -authorities -l /var/tmp/bulkmarcimport_auth.log -all -match Any,010a -v 2\" | tee /var/tmp/bulkmarcimport_auth_raw.log", path);
+			// NOTE: this requires Elasticsearch to work properly. Otherwise LC-card-number index searching doesn't work with Zebra,
+			// so you'd have to use Any instead, but that comes with its own set of issues (which caused record duplication))
+			snprintf(cmd, sizeof(cmd), "/usr/sbin/koha-shell biblioteka -c \"/usr/share/koha/bin/migration_tools/bulkmarcimport2.pl -file \\\"%s\\\" -authorities -l /var/tmp/bulkmarcimport_auth.log -all -match LC-card-number,010a -v 2\" | tee /var/tmp/bulkmarcimport_auth_raw.log", path);
+			printf("[import_helper] Executing: %s\n", cmd);
 			system(cmd);
 
 		} else if (strcmp(type, "auth_update") == 0) {
@@ -69,8 +72,10 @@ int main(int argc, char **argv)
 			unlink("/var/tmp/bulkmarcimport_auth_update.log");
 			unlink("/var/tmp/bulkmarcimport_auth_update_raw.log");
 
-			// LC-card-number should work but it doesn't, so we use Any
-			snprintf(cmd, sizeof(cmd), "/usr/sbin/koha-shell biblioteka -c \"/usr/share/koha/bin/migration_tools/bulkmarcimport2.pl -file \\\"%s\\\" -authorities -l /var/tmp/bulkmarcimport_auth_update.log -update -match Any,010a -v 2\" | tee /var/tmp/bulkmarcimport_auth_update_raw.log", path);
+			// NOTE: this requires Elasticsearch to work properly. Otherwise LC-card-number index searching doesn't work with Zebra,
+			// so you'd have to use Any instead, but that comes with its own set of issues (which caused record duplication))
+			snprintf(cmd, sizeof(cmd), "/usr/sbin/koha-shell biblioteka -c \"/usr/share/koha/bin/migration_tools/bulkmarcimport2.pl -file \\\"%s\\\" -authorities -l /var/tmp/bulkmarcimport_auth_update.log -update -match LC-card-number,010a -v 2\" | tee /var/tmp/bulkmarcimport_auth_update_raw.log", path);
+			printf("[import_helper] Executing: %s\n", cmd);
 			system(cmd);
 
 		} else {
