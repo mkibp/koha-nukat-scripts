@@ -144,6 +144,11 @@ async function getBibsWithNoType(): Promise<string[]> {
     return (rows as any[]).map((r: any) => r.controlid as string);
 }
 
+async function getBibsWithNoItems(): Promise<string[]> {
+    const [rows, fields] = await mysql_connection.query("SELECT ExtractValue(`biblio_metadata`.`metadata`, '//datafield[@tag=035]/subfield[@code=\"a\"]') AS controlid FROM `biblio` LEFT JOIN `biblioitems` ON `biblioitems`.`biblionumber` = `biblio`.`biblionumber` LEFT JOIN `biblio_metadata` on `biblio_metadata`.`biblionumber` = `biblio`.`biblionumber` LEFT JOIN `items` ON `items`.`biblionumber` = `biblio`.`biblionumber` WHERE `items`.`biblionumber` IS NULL ORDER BY lccn ASC;");
+    return (rows as any[]).map((r: any) => r.controlid as string);
+}
+
 async function getOurAuthControlIds(): Promise<string[]> {
     console.log("Pobieranie naszych haseł wzorcowych...");
     //const [rows, fields] = await mysql_connection.query(`SELECT authid, REGEXP_REPLACE(REGEXP_SUBSTR(marcxml, '<datafield tag="010" ind1=" " ind2=" ">[ \\n]*<subfield code="a">([^<]+)<\\/subfield>[ \\n]*<\\/datafield>'), '<datafield tag="010" ind1=" " ind2=" ">[ \\n]*<subfield code="a">([^<]+)<\\/subfield>[ \\n]*<\\/datafield>', '\\\\1') AS controlid FROM auth_header;`);
@@ -442,12 +447,13 @@ async function genRaportExtraProblems(): Promise<[string, number]> {
     const bibsDupl = await getDuplicatedBibs();
     const bibsMultiTypes = await getBibsWithMultipleTypes();
     const bibsNoType = await getBibsWithNoType();
+    const bibsNoItems = await getBibsWithNoItems();
     const authsDupl = await getDuplicatedAuths();
 
     let raport = "";
     let sumProblems = 0;
 
-    if ([bibsWith009, bibsDupl, bibsMultiTypes, bibsNoType, authsDupl].some(a => a.length)) {
+    if ([bibsWith009, bibsDupl, bibsMultiTypes, bibsNoType, bibsNoItems, authsDupl].some(a => a.length)) {
         raport += `#################################\n`;
         raport += `## Dodatkowe problemy w bazie Koha\n`;
         raport += `#################################\n`;
@@ -475,6 +481,12 @@ async function genRaportExtraProblems(): Promise<[string, number]> {
         raport += `\n== Rekordy bez żadnego typu [pole 942] (${bibsNoType.length}) ==\n`;
         raport += util.inspect(bibsNoType, { maxArrayLength: Infinity, sorted: true }) + "\n";
         sumProblems += bibsNoType.length;
+    }
+
+    if (bibsNoItems.length) {
+        raport += `\n== Rekordy bez żadnych egzemplarzy (${bibsNoItems.length}) ==\n`;
+        raport += util.inspect(bibsNoItems, { maxArrayLength: Infinity, sorted: true }) + "\n";
+        sumProblems += bibsNoItems.length;
     }
 
     if (authsDupl.length) {

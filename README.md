@@ -23,6 +23,7 @@ Sprawdza:
 - rekordy zduplikowane
 - rekordy z więcej niż jednym typem [pole 942]
 - rekordy bez żadnego typu [pole 942]
+- rekordy bez żadnych egzemplarzy
 - hasła wzorcowe zduplikowane
 - hasła wzorcowe, które są w Koha, a nie pasują do żadnych rekordów z Nukata
 - brakujące hasła wzorcowe w Koha
