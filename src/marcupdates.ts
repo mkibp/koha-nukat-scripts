@@ -9,8 +9,8 @@ import { emailTransporter, getEmailFrom, getEmailTo } from "./email";
 // khw_kop = khasla rekordy ("Khw dla kopiowanych")
 // khw_upd = ftpuser
 
-type MARC_FILE_TYPE = "bib" | "khw_mod" | "khw_kop" | "khw_upd";
-const MARC_FILE_TYPE_ARR = ["bib", "khw_mod", "khw_kop", "khw_upd"];
+type MARC_FILE_TYPE = "bib" | "khw_mod" | "khw_kop" | "khw_upd" | "khw_bn_upd" | "khw_bn_n_upd";
+const MARC_FILE_TYPE_ARR = ["bib", "khw_mod", "khw_kop", "khw_upd", "khw_bn_upd", "khw_bn_n_upd"];
 
 interface MarcUpdateFile {
     name: string;
@@ -37,6 +37,8 @@ async function getNewMarcUpdates(type: MARC_FILE_TYPE): Promise<MarcUpdateFile[]
         khw_mod: "khasla",
         khw_kop: "khasla",
         khw_upd: "ftpuser",
+        khw_bn_upd: "bn",
+        khw_bn_n_upd: "bn",
     }[type] as FTP_USER;
     await ftpConnect(ftpUserForType);
     const ftp = ftpClient[ftpUserForType];
@@ -52,8 +54,25 @@ async function getNewMarcUpdates(type: MARC_FILE_TYPE): Promise<MarcUpdateFile[]
         if (!f.isFile || !f.size)
             return false;
         let day = parseInt(f.name);
-        if (type === "bib" || type === "khw_upd") {
-            const r = (type === "bib" ? /^ubf([0-9]{6})$/ : /^uf([0-9]{6})$/).exec(f.name);
+        if (type !== "khw_mod" && type !== "khw_kop") {
+            let regex: RegExp;
+            switch (type) {
+                case "bib":
+                    regex = /^ubf([0-9]{6})$/;
+                    break;
+                case "khw_upd":
+                    regex = /^uf([0-9]{6})$/;
+                    break;
+                case "khw_bn_upd":
+                    regex = /^ufbn([0-9]{6})$/;
+                    break;
+                case "khw_bn_n_upd":
+                    regex = /^unbn([0-9]{6})$/;
+                    break;
+                default:
+                    throw new Error("unknown type");
+            }
+            const r = regex.exec(f.name);
             if (r && r[1])
                 day = +r[1];
             else
@@ -103,7 +122,7 @@ async function insertFilenamesIntoMarcUpdatesDB(filenames: string[]) {
     await mysql_connection.query("INSERT INTO _marcupdates (filename) VALUES (?)", [filenames]);
 }
 
-async function cleanupFilenames(files: MarcUpdateFile[]) {
+async function cleanupFiles(files: MarcUpdateFile[]) {
     for (const file of files) {
         const filepath = getPathForMarcUpdateFile(file);
         if (await fs.exists(filepath)) {
@@ -130,24 +149,38 @@ async function importMarcUpdatesToKoha(updates: MarcUpdateFile[]) {
         //script = import.meta.dir + "/../" + script;
         const helper_cmd = import.meta.dir + "/../import_helper";
         const dateBefore = +new Date();
-        const cmdParams = [helper_cmd, update.type === "bib" ? "bib" : (update.type === "khw_upd" ? "auth_update" : "auth_all"), getPathForMarcUpdateFile(update)];
+        const cmdParams = [
+            helper_cmd,
+            update.type === "bib" ? "bib" : ((update.type === "khw_mod" || update.type === "khw_kop") ? "auth_all" : "auth_update"),
+            update.type,
+            getPathForMarcUpdateFile(update),
+        ];
+
         console.log(`Executing: ${cmdParams.join(" ")}\n`);
+        const procStartTime = performance.now();
         const proc = Bun.spawn(cmdParams);
+        await proc.exited;
+        console.log(`Process finished with exit code ${proc.exitCode} after ${(performance.now() - procStartTime)|0} ms`);
+
         const text = await new Response(proc.stdout).text();
         const text_err = await new Response(proc.stderr).text();
         //r += text;
-        await proc.exited;
         
-        const file = Bun.file(update.type === "bib" ? "/var/tmp/bulkmarcimport.log" : `/var/tmp/bulkmarcimport_auth${update.type === "khw_upd" ? "_update" : ""}.log`);
-        let logtext = await file.text();
-        logtext = logtext.split("\n").filter(l => !l.trim().endsWith(";insert;warning : biblio not in database and option -insert not enabled, skipping...")).join("\n");
-        if (file.lastModified >= dateBefore) {
-            r += logtext + "\n";
-            if (!logtext.includes(getPathForMarcUpdateFile(update))) {
-                r += "\nSurowy output skryptu:\n" + text + "\n\n";
+        let logtext = '';
+        const file = Bun.file(`/var/tmp/bulkmarcimport_${update.type}.log`);
+        if (await file.exists()) {
+            logtext = await file.text();
+            logtext = logtext.split("\n").filter(l => !l.trim().endsWith(";insert;warning : biblio not in database and option -insert not enabled, skipping...")).join("\n");
+            if (file.lastModified >= dateBefore) {
+                r += logtext + "\n";
+                if (!logtext.includes(getPathForMarcUpdateFile(update))) {
+                    r += "\nSurowy output skryptu:\n" + text + "\n\n";
+                }
+            } else {
+                r += "Brak logu po imporcie??! (data nieaktualna)\n";
             }
         } else {
-            r += "Brak logu po imporcie??!\n";
+            r += "Brak logu po imporcie??! (plik nie istnieje)\n";
         }
 
         if (text_err)
@@ -156,7 +189,7 @@ async function importMarcUpdatesToKoha(updates: MarcUpdateFile[]) {
         raport += r;
         console.log(r);
         console.log(text);
-        if (text_err && !logtext.includes(getPathForMarcUpdateFile(update))) {
+        if (!(await file.exists()) || proc.exitCode !== 0 || (text_err && !logtext.includes(getPathForMarcUpdateFile(update)))) {
             r += "\n!! Assuming error and not inserting to database!\n";
         } else {
             await insertFilenamesIntoMarcUpdatesDB([update.type + "|" + update.name]);
@@ -200,15 +233,24 @@ async function processMarcUpdates() {
     const updatesKhwUpdPromise = getNewMarcUpdates("khw_upd");
     const updatesKhwUpd = await updatesKhwUpdPromise;
 
+    console.log("Sprawdzanie plików khw_bn_upd (aktualizacje khw bn)...");
+    const updatesKhwBnUpdPromise = getNewMarcUpdates("khw_bn_upd");
+    const updatesKhwBnUpd = await updatesKhwBnUpdPromise;
+
+    console.log("Sprawdzanie plików khw_bn_n_upd (aktualizacje khw bn n)...");
+    const updatesKhwBnNUpdPromise = getNewMarcUpdates("khw_bn_n_upd");
+    const updatesKhwBnNUpd = await updatesKhwBnNUpdPromise;
+
     //console.log({ updatesBib, updatesKhwMod, updatesKhwKop });
-    const updatesCombined = [...updatesBib, ...updatesKhwMod, ...updatesKhwKop, ...updatesKhwUpd].sort((a, b) => {
+    const updatesCombined = [...updatesBib, ...updatesKhwMod, ...updatesKhwKop, ...updatesKhwUpd, ...updatesKhwBnUpd, ...updatesKhwBnNUpd]
+    .sort((a, b) => {
         const date_a = parseInt(/^.*?([0-9]{6,8})$/g.exec(a.name)?.[1] || /^([0-9]{6,8}).*?$/g.exec(a.name)?.[1] || "0");
         const date_b = parseInt(/^.*?([0-9]{6,8})$/g.exec(b.name)?.[1] || /^([0-9]{6,8}).*?$/g.exec(b.name)?.[1] || "0");
         //console.log({ aname: a.name, bname: b.name, date_a, date_b });
         const comp = date_a - date_b;
         if (comp !== 0)
             return comp;
-        const order = ["khw_kop", "khw_mod", "khw_upd", "bib"];
+        const order = ["khw_kop", "khw_mod", "khw_upd", "khw_bn_upd", "khw_bn_n_upd", "bib"];
         const orderSort = order.indexOf(a.type) - order.indexOf(b.type);
         if (orderSort !== 0)
             return orderSort;
@@ -219,9 +261,12 @@ async function processMarcUpdates() {
 
     await importMarcUpdatesToKoha(updatesCombined);
 
-    await cleanupFilenames(updatesBib);
-    await cleanupFilenames(updatesKhwMod);
-    await cleanupFilenames(updatesKhwKop);
+    await cleanupFiles(updatesBib);
+    await cleanupFiles(updatesKhwMod);
+    await cleanupFiles(updatesKhwKop);
+    await cleanupFiles(updatesKhwUpd);
+    await cleanupFiles(updatesKhwBnUpd);
+    await cleanupFiles(updatesKhwBnNUpd);
 
     await mysqlEnd();
 }
