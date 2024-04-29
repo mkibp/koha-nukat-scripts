@@ -178,7 +178,7 @@ async function getOurBibControlIdsToModificationDate(): Promise<{ [controlid: st
         accum[row.controlid] = row.date;
         return accum;
     }, {})
-    console.log(`Pobrano ${Object.keys(ret).length} haseł wzorcowych z naszej bazy danych`);
+    console.log(`Pobrano ${Object.keys(ret).length} rekordów bibliograficznych (z ostatnią datą modyfikacji) z naszej bazy danych`);
     return ret;
 }
 
@@ -298,8 +298,10 @@ async function getOutdatedAuthControlIds(ourControlIdsToModDate: { [controlid: s
                 for (const line of split) {
                     lines++;
                     const m = row_regex.exec(line);
-                    if (!m)
+                    if (!m) {
+                        console.warn(`[getOutdatedAuthControlIds] Line "${line}" does not match the regex!`);
                         continue;
+                    }
                     const controlid = m[2];
                     const moddate = m[4];
                     let ourdate: string | undefined = undefined;
@@ -349,8 +351,10 @@ async function getOutdatedBibControlIds(ourControlIdsToModDate: { [controlid: st
                 for (const line of split) {
                     lines++;
                     const m = row_regex.exec(line);
-                    if (!m)
+                    if (!m) {
+                        console.warn(`[getOutdatedBibControlIds] Line "${line}" does not match the regex!`);
                         continue;
+                    }
                     const controlid = m[2];
                     const moddate = m[4];
                     let ourdate: string | undefined = undefined;
