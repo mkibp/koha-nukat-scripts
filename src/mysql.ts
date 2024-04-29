@@ -19,7 +19,10 @@ const config_db = {
 //console.log(config_db);
 
 export const mysql_connection = await mysql.createConnection({
-    host: config_db.hostname === "localhost" ? "127.0.0.1" : config_db.hostname,
+    //host: config_db.hostname === "localhost" ? "127.0.0.1" : config_db.hostname,
+    //host: config_db.hostname === "localhost" ? "/var/run/mysqld/mysqld.sock" : config_db.hostname,
+    host: config_db.hostname,
+    socketPath: "/var/run/mysqld/mysqld.sock",
     port: config_db.port,
     database: config_db.database,
     user: config_db.user,
