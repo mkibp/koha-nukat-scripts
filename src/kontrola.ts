@@ -47,3 +47,4 @@ async function performKontrola() {
 
 await performKontrola();
 await mysqlEnd();
+process.exit();

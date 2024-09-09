@@ -643,3 +643,4 @@ async function performSobotasCheck() {
 //console.log(await getTheirNewSobotas());
 await performSobotasCheck();
 await mysqlEnd();
+process.exit();

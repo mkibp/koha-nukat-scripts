@@ -272,3 +272,4 @@ async function processMarcUpdates() {
 }
 
 await processMarcUpdates();
+process.exit();
