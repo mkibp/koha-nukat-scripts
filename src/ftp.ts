@@ -10,7 +10,7 @@ export async function ftpConnect(user: FTP_USER) {
     if (ftpConnected[user] === true)
         return;
     if (!ftpClient[user])
-        ftpClient[user] = new ftp.Client();
+        ftpClient[user] = new ftp.Client(10 * 60 * 1000);
     await ftpClient[user].access({
         //host: config.ftp.host,
         host: await getSysPrefsValue("Nukat_FTP_Host"),
