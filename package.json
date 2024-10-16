@@ -3,7 +3,7 @@
   "module": "index.ts",
   "type": "module",
   "devDependencies": {
-    "@types/nodemailer": "^6.4.15",
+    "@types/nodemailer": "^6.4.16",
     "bun-types": "latest"
   },
   "peerDependencies": {
@@ -12,7 +12,7 @@
   "dependencies": {
     "basic-ftp": "^5.0.5",
     "dayjs": "^1.11.13",
-    "mysql2": "^3.11.0",
+    "mysql2": "^3.11.3",
     "nodemailer": "^6.9.15",
     "xml-js": "^1.6.11"
   }
