@@ -25,5 +25,8 @@ INSERT INTO `systempreferences` (`variable`, `value`, `options`, `explanation`, 
 ('Nukat_Library_Symbol', '', NULL, 'Symbol biblioteki w Nukat', 'Free');
 ('NukatSkrypty_Email_SenderName', 'Koha-Scripts', NULL, 'Wyświetlana nazwa nadawcy wiadomości e-mail', 'Free');
 ('NukatSkrypty_Email_Receiver', '', NULL, 'Odbiorcy adresów e-mail (oddzieleni średnikami)', 'Free');
+('NukatSkrypty_API_User', '', NULL, 'Nazwa użytkownika przeznaczonego do API', 'Free');
+('NukatSkrypty_API_Pass', '', NULL, 'Hasło użytkownika przeznaczonego do API', 'Free');
+('NukatSkrypty_API_PutBibliosFramework', '', NULL, 'ID szablonu MARC do użycia/wymuszenia przy modyfikacji rekordu', 'Free');
 
 COMMIT;

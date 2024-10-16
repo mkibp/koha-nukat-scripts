@@ -17,6 +17,7 @@ import config, { getNukatLibrarySymbolLwr } from "./config";
 import { mysqlEnd, mysql_connection } from "./mysql";
 import { ftpClient, ftpConnect, ftpDisconnect } from "./ftp";
 import { emailTransporter, getEmailFrom, getEmailTo } from "./email";
+import { genRaportOCLC } from "./oclc";
 
 
 interface SobotaComparisonResults {
@@ -182,7 +183,7 @@ async function getOurBibControlIdsToModificationDate(): Promise<{ [controlid: st
     return ret;
 }
 
-function ftpParseRawDate(raw: string): dayjs.Dayjs { // -.-
+export function ftpParseRawDate(raw: string): dayjs.Dayjs { // -.-
     // [ "Feb 02 2016", "Mar 18 2015" ]
     // [ "Oct 21 09:52", "Oct 21 09:52", "Oct 21 09:53", "Oct 21 09:53", "Oct 21 09:53", "Oct 21 09:53", "Oct 21 07:54" ]
     if (Number.isNaN(parseInt(raw)))
@@ -616,6 +617,11 @@ async function performSobotasCheck() {
     console.log(raportBibDates);
     raport += raportBibDates;
     sumProblems += sumProblemsBibDates;
+
+    const [raportOCLC, sumProblemsOCLC] = await genRaportOCLC();
+    console.log(raportOCLC);
+    raport += raportOCLC;
+    sumProblems += sumProblemsOCLC;
 
     const endDate = dayjs();
     raport += "\nData zakończenia generowania raportu: " + dateToText(endDate) + "\n";
