@@ -1,0 +1,9 @@
+when:
+  - event: cron
+    cron: "sobota"
+
+steps:
+  - image: bash
+    commands:
+      - bun src/sobota.ts > $${RAPORT_SOBOTA_PATH} 2>&1
+    secrets: [ RAPORT_SOBOTA_PATH ]

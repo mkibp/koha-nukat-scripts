@@ -1,0 +1,10 @@
+when:
+  - event: cron
+    cron: "daily"
+
+steps:
+  - image: bash
+    commands:
+      - ln -s $${IMPORT_HELPER_PATH} ./import_helper
+      - bun src/marcupdates.ts > $${RAPORT_DZIENNY_IMPORT_PATH} 2>&1 && mv /var/tmp/raport_dzienny_import.txt $${RAPORT_DZIENNY_IMPORT_SHORT_PATH}
+    secrets: [ IMPORT_HELPER_PATH, RAPORT_DZIENNY_IMPORT_PATH, RAPORT_DZIENNY_IMPORT_SHORT_PATH ]
