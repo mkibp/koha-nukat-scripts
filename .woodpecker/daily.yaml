@@ -12,5 +12,7 @@ steps:
   - name: Dzienne aktualizacje
     image: bash
     commands:
+      - export BUN_INSTALL="$HOME/.bun"
+      - export PATH=$BUN_INSTALL/bin:$PATH
       - bun src/marcupdates.ts > $${RAPORT_DZIENNY_IMPORT_PATH} 2>&1 && mv /var/tmp/raport_dzienny_import.txt $${RAPORT_DZIENNY_IMPORT_SHORT_PATH}
     secrets: [ RAPORT_DZIENNY_IMPORT_PATH, RAPORT_DZIENNY_IMPORT_SHORT_PATH ]
