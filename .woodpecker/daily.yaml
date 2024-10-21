@@ -7,12 +7,17 @@ steps:
     image: bash
     commands:
       - ln -s $${IMPORT_HELPER_PATH} ./import_helper
-      - $${BUN_PATH} install --frozen-lockfile
+      - $${BUN_PATH} install --production --frozen-lockfile
     secrets: [ BUN_PATH, IMPORT_HELPER_PATH ]
 
   - name: Dzienne aktualizacje
     image: bash
     commands:
       - $${BUN_PATH} src/marcupdates.ts 2>&1 | tee $${RAPORT_DZIENNY_IMPORT_PATH}
-      - mv /var/tmp/raport_dzienny_import.txt $${RAPORT_DZIENNY_IMPORT_SHORT_PATH}
-    secrets: [ BUN_PATH, RAPORT_DZIENNY_IMPORT_PATH, RAPORT_DZIENNY_IMPORT_SHORT_PATH ]
+    secrets: [ BUN_PATH, RAPORT_DZIENNY_IMPORT_PATH ]
+
+  - name: Podsumowanie
+    image: bash
+    commands: |
+      [ ! -f /var/tmp/raport_dzienny_import.txt ] || ( mv /var/tmp/raport_dzienny_import.txt $${RAPORT_DZIENNY_IMPORT_SHORT_PATH} && cat $${RAPORT_DZIENNY_IMPORT_SHORT_PATH} )
+    secrets: [ RAPORT_DZIENNY_IMPORT_SHORT_PATH ]

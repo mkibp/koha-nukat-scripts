@@ -6,7 +6,7 @@ steps:
   - name: Przygotowanie
     image: bash
     commands:
-      - $${BUN_PATH} install --frozen-lockfile
+      - $${BUN_PATH} install --production --frozen-lockfile
     secrets: [ BUN_PATH ]
 
   - name: Sobota
@@ -14,3 +14,9 @@ steps:
     commands:
       - $${BUN_PATH} src/sobota.ts 2&>1 | tee $${RAPORT_SOBOTA_PATH}
     secrets: [ BUN_PATH, RAPORT_SOBOTA_PATH ]
+
+  - name: Podsumowanie
+    image: bash
+    commands: |
+      [ ! -f /var/tmp/raport_sobota.txt ] || ( mv /var/tmp/raport_sobota.txt $${RAPORT_SOBOTA_SHORT_PATH} && cat $${RAPORT_SOBOTA_SHORT_PATH} )
+    secrets: [ RAPORT_SOBOTA_SHORT_PATH ]

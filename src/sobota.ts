@@ -627,6 +627,13 @@ async function performSobotasCheck() {
     raport += "\nData zakończenia generowania raportu: " + dateToText(endDate) + "\n";
     raport += "Czas generowania raportu: " + dayjs().from(startDate, true) + "\n";
 
+    try {
+        const file = Bun.file("/var/tmp/raport_sobota.txt");
+        const writer = file.writer();
+        writer.write(raport);
+        await writer.end();
+    } catch (e) {}
+
     console.log("Sending e-mail...");
     await emailTransporter.sendMail({
         from: await getEmailFrom(),
