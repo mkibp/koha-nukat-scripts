@@ -205,14 +205,14 @@ export async function genRaportOCLC(): Promise<[string, number]> {
 
     raport += `\n== Naprawione niepoprawne numery OCLC (${results.fixedWrong.length}) ==\n`;
     if (results.fixedWrong.length) {
-        raport += results.fixedWrong.map(([control, old_oclc, new_oclc]) => `${control} - ${old_oclc} => ${new_oclc}`) + "\n";
+        raport += results.fixedWrong.map(([control, old_oclc, new_oclc]) => `${control} - ${old_oclc} => ${new_oclc}`).join("\n") + "\n";
     } else {
         raport += "brak! :)\n";
     }
 
     raport += `\n== Ustawione nowe numery OCLC (${results.addedNew.length}) ==\n`;
     if (results.addedNew.length) {
-        raport += results.addedNew.map(([control, oclc]) => `${control} => ${oclc}`) + "\n";
+        raport += results.addedNew.map(([control, oclc]) => `${control} => ${oclc}`).join("\n") + "\n";
     } else {
         raport += "brak! :)\n";
     }
