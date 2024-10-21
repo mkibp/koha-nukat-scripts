@@ -5,7 +5,5 @@ when:
 steps:
   - image: bash
     commands:
-      - export BUN_INSTALL="$HOME/.bun"
-      - export PATH=$BUN_INSTALL/bin:$PATH
-      - bun src/sobota.ts > $${RAPORT_SOBOTA_PATH} 2>&1
-    secrets: [ RAPORT_SOBOTA_PATH ]
+      - $${BUN_PATH} src/sobota.ts > $${RAPORT_SOBOTA_PATH} 2>&1
+    secrets: [ BUN_PATH, RAPORT_SOBOTA_PATH ]
