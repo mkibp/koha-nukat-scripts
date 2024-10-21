@@ -3,7 +3,14 @@ when:
     cron: "sobota"
 
 steps:
-  - image: bash
+  - name: Przygotowanie
+    image: bash
     commands:
-      - $${BUN_PATH} src/sobota.ts > $${RAPORT_SOBOTA_PATH} 2>&1
+      - $${BUN_PATH} install --frozen-lockfile
+    secrets: [ BUN_PATH ]
+
+  - name: Sobota
+    image: bash
+    commands:
+      - $${BUN_PATH} src/sobota.ts 2&>1 | tee $${RAPORT_SOBOTA_PATH}
     secrets: [ BUN_PATH, RAPORT_SOBOTA_PATH ]
