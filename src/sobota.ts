@@ -628,11 +628,13 @@ async function performSobotasCheck() {
     raport += "Czas generowania raportu: " + dayjs().from(startDate, true) + "\n";
 
     try {
-        const file = Bun.file("/var/tmp/raport_sobota.txt");
+        const filepath = "/var/tmp/raport_sobota.txt";
+        const file = Bun.file(filepath);
         const writer = file.writer();
         writer.write(raport);
         await writer.end();
-    } catch (e) {}
+        console.log(`Saved short raport to: ${filepath}`)
+    } catch (e) { console.log("Failed saving short raport!"); }
 
     console.log("Sending e-mail...");
     await emailTransporter.sendMail({
@@ -656,4 +658,5 @@ async function performSobotasCheck() {
 //console.log(await getTheirNewSobotas());
 await performSobotasCheck();
 await mysqlEnd();
-process.exit();
+console.log("Ending the process.");
+process.exit(0);

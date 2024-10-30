@@ -13,11 +13,13 @@ steps:
   - name: Dzienne aktualizacje
     image: bash
     commands:
+      - echo $${RAPORT_DZIENNY_IMPORT_PATH}
       - $${BUN_PATH} src/marcupdates.ts 2>&1 | tee $${RAPORT_DZIENNY_IMPORT_PATH}
     secrets: [ BUN_PATH, RAPORT_DZIENNY_IMPORT_PATH ]
 
   - name: Podsumowanie
     image: bash
     commands: |
+      [ ! -f /var/tmp/raport_dzienny_import.txt ] && echo "Brak raportu = prawopodobnie brak plików do importu"
       [ ! -f /var/tmp/raport_dzienny_import.txt ] || ( mv /var/tmp/raport_dzienny_import.txt $${RAPORT_DZIENNY_IMPORT_SHORT_PATH} && cat $${RAPORT_DZIENNY_IMPORT_SHORT_PATH} )
     secrets: [ RAPORT_DZIENNY_IMPORT_SHORT_PATH ]

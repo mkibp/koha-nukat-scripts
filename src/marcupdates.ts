@@ -198,11 +198,13 @@ async function importMarcUpdatesToKoha(updates: MarcUpdateFile[]) {
 
     if (updates.length > 0) {
         try {
-            const file = Bun.file("/var/tmp/raport_dzienny_import.txt");
+            const filepath = "/var/tmp/raport_dzienny_import.txt";
+            const file = Bun.file(filepath);
             const writer = file.writer();
             writer.write(raport);
             await writer.end();
-        } catch (e) {}
+            console.log(`Saved short raport to: ${filepath}`)
+        } catch (e) { console.log("Failed saving short raport!"); }
         console.log("Sending e-mail...");
         await emailTransporter.sendMail({
             from: await getEmailFrom(),
@@ -272,4 +274,5 @@ async function processMarcUpdates() {
 }
 
 await processMarcUpdates();
-process.exit();
+console.log("Ending the process.");
+process.exit(0);
